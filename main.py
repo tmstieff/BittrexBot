@@ -30,7 +30,10 @@ def tick():
         day_close = summary['PrevDay']
         last = summary['Last']
 
-        percent_chg = ((last / day_close) - 1) * 100
+        if day_close > 0:
+            percent_chg = ((last / day_close) - 1) * 100
+        else:
+            print ('day_close zero for ' + market)
         print(market + ' changed ' + str(percent_chg))
 
         if 40 < percent_chg < 60:
@@ -41,7 +44,9 @@ def tick():
 
         if percent_chg < -20:
             # Ship is sinking, get out!
-            sell_limit(market, 5, last)
+            print('Selling 5 units of ' + market + ' for ' + str(format_float(last)))
+            res = sell_limit(market, 5, last)
+            print(res)
 
 
 def buy_limit(market, quantity, rate):
