@@ -24,7 +24,7 @@ def main():
 def tick():
     print('Running routine')
 
-    market_summaries = simple_reqest('https://bittrex.com/api/v1.1/public/getmarketsummaries')
+    market_summaries = simple_request('https://bittrex.com/api/v1.1/public/getmarketsummaries')
     for summary in market_summaries['result']:
         market = summary['MarketName']
         day_close = summary['PrevDay']
@@ -33,20 +33,34 @@ def tick():
         if day_close > 0:
             percent_chg = ((last / day_close) - 1) * 100
         else:
-            print ('day_close zero for ' + market)
+            print('day_close zero for ' + market)
+
         print(market + ' changed ' + str(percent_chg))
 
         if 40 < percent_chg < 60:
             # Fomo strikes! Let's buy some
-            print('Purchasing 5 units of ' + market + ' for ' + str(format_float(last)))
-            res = buy_limit(market, 5, last)
-            print(res)
+            if has_open_order(market, 'LIMIT_BUY'):
+                print('Order already opened to buy 5 ' + market)
+            else:
+                print('Purchasing 5 units of ' + market + ' for ' + str(format_float(last)))
+                res = buy_limit(market, 5, last)
+                print(res)
 
         if percent_chg < -20:
-            # Ship is sinking, get out!
-            print('Selling 5 units of ' + market + ' for ' + str(format_float(last)))
-            res = sell_limit(market, 5, last)
-            print(res)
+            # Do we have any to sell?
+            balance_res = get_balance_from_market(market)
+            current_balance = balance_res['result']['Available']
+
+            if current_balance > 5:
+                # Ship is sinking, get out!
+                if has_open_order(market, 'LIMIT_SELL'):
+                    print('Order already opened to sell 5 ' + market)
+                else:
+                    print('Selling 5 units of ' + market + ' for ' + str(format_float(last)))
+                    res = sell_limit(market, 5, last)
+                    print(res)
+            else:
+                print('Not enough ' + market + ' to open a sell order')
 
 
 def buy_limit(market, quantity, rate):
@@ -59,6 +73,42 @@ def sell_limit(market, quantity, rate):
     return signed_request(url)
 
 
+def get_balance_from_market(market_type):
+    markets_res = simple_request('https://bittrex.com/api/v1.1/public/getmarkets')
+    markets = markets_res['result']
+    for market in markets:
+        if market['MarketName'] == market_type:
+            return get_balance(market['MarketCurrency'])
+
+    # Return a fake response of 0 if not found
+    return {'result': {'Balance': 0}}
+
+
+def get_balance(currency):
+    url = 'https://bittrex.com/api/v1.1/account/getbalance?apikey=' + API_KEY + '&currency=' + currency
+    return signed_request(url)
+
+
+def get_open_orders(market):
+    url = 'https://bittrex.com/api/v1.1/market/getopenorders?apikey=' + API_KEY + '&market=' + market
+    return signed_request(url)
+
+
+def has_open_order(market, order_type):
+    orders_res = get_open_orders(market)
+    orders = orders_res['result']
+
+    if len(orders) == 0:
+        return False
+
+    # Check all orders for a LIMIT_BUY
+    for order in orders:
+        if order['OrderType'] == order_type:
+            return True
+
+    return False
+
+
 def signed_request(url):
     now = time.time()
     url += '&nonce=' + str(now)
@@ -68,7 +118,7 @@ def signed_request(url):
     return r.json()
 
 
-def simple_reqest(url):
+def simple_request(url):
     r = requests.get(url)
     return r.json()
 
