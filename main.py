@@ -5,7 +5,7 @@ import hmac
 
 TICK_INTERVAL = 60  # seconds
 API_KEY = 'my-api-key'
-API_SECRET_KEY = b'my-secret-api-key'
+API_SECRET_KEY = b'my-secret-key'
 
 
 def main():
@@ -81,12 +81,18 @@ def get_balance_from_market(market_type):
             return get_balance(market['MarketCurrency'])
 
     # Return a fake response of 0 if not found
-    return {'result': {'Balance': 0}}
+    return {'result': {'Available': 0}}
 
 
 def get_balance(currency):
     url = 'https://bittrex.com/api/v1.1/account/getbalance?apikey=' + API_KEY + '&currency=' + currency
-    return signed_request(url)
+    res = signed_request(url)
+
+    if res['result'] is not None and len(res['result']) > 0:
+        return res
+
+    # If there are no results, than your balance is 0
+    return {'result': {'Available': 0}}
 
 
 def get_open_orders(market):
@@ -98,7 +104,7 @@ def has_open_order(market, order_type):
     orders_res = get_open_orders(market)
     orders = orders_res['result']
 
-    if len(orders) == 0:
+    if orders is None or len(orders) == 0:
         return False
 
     # Check all orders for a LIMIT_BUY
